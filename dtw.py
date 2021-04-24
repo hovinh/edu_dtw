@@ -5,6 +5,8 @@ from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
                                AutoMinorLocator)
 import matplotlib.cm as cm
 import matplotlib.animation as animation
+from matplotlib.patches import ConnectionPatch
+
 import seaborn as sns
 import os
 
@@ -31,10 +33,14 @@ class DynamicTimeWarping(object):
             - s1, s2: TimeSeries, rescaled data.
         '''
 
-        # downsampling time series maximum allowable length while maintain the length ratio in the pair
-        s1, s2 = self._preprocess(s1=self._s1, 
-                                  s2=self._s2,
-                                  max_ele=max_ele,)
+        # only downsampling if max_ele < duration of shorter time series
+        s1, s2 = self._s1, self._s2
+        len_s1, len_s2 = len(s1), len(s2)
+        if (max_ele < min(len_s1, len_s2)):
+            # downsampling time series maximum allowable length while maintain the length ratio in the pair
+            s1, s2 = self._preprocess(s1=s1, 
+                                    s2=s2,
+                                    max_ele=max_ele,)
 
         # compute DTW_dist and mapping
         DTW_dist, matrix  = self._compute_DTW_matrix_and_distance(s1, s2)
@@ -101,9 +107,9 @@ class DynamicTimeWarping(object):
             min_val_idx = np.argmin(cell_vals)
 
             # the selected cell's position imply a mapping established between 2 time series
-            x_pair = [n-1, m-1]
-            y_pair = [s1[n-1], s2[m-1]]
-            connection_list.append([x_pair, y_pair])
+            point_in_s1 = [n-1, s1[n-1]]
+            point_in_s2 = [m-1, s2[m-1]]
+            connection_list.append([point_in_s1, point_in_s2])
             n, m = next_cell_mapping[min_val_idx]
 
         return connection_list[::-1]
@@ -118,7 +124,7 @@ class DynamicTimeWarping(object):
             - mask: np.array, could be [0, 1] or boolean.  
             - line_ratio: float, [0.; 1.]. How much of backtracking line to be shown.
             - use_log: boolean. Transform matrix's cell value with natural log.
-            - figsize: tuple, should be same size. 
+            - figsize: tuple, should be a square. 
             - color_s1, color_s2: str, a seaborn color.
             - show_numb: boolean, shows cost on cell.
             - is_saved: boolean, to save the plot to file or not. 
@@ -150,8 +156,8 @@ class DynamicTimeWarping(object):
                     xticklabels=[], yticklabels=[], ax=main_ax)
 
         # Plot backtracking line on top
-        x = [x_pair[1]+0.5 for x_pair, _ in connection_list]
-        y = [x_pair[0]+0.5 for x_pair, _ in connection_list]
+        x = [x2+0.5 for ((x1, y1), (x2, y2)) in connection_list]
+        y = [x1+0.5 for ((x1, y1), (x2, y2)) in connection_list]
         n_points = len(x)
         n_points_shown = int(n_points*(1-line_ratio))
         main_ax.plot(x[n_points_shown:], y[n_points_shown:], '-', c='darkslategray')
@@ -182,51 +188,41 @@ class DynamicTimeWarping(object):
         plt.close()
 
     def plot_series_mapping(self, s1, s2, connection_list, figsize=(8, 8), 
-                    color_s1='limegreen', color_s2='cornflowerblue', show_connection_val=True, illustrate_gap=400, is_saved=False, img_name='series_mapping.png'):
+                    color_s1='limegreen', color_s2='cornflowerblue', is_saved=False, img_name='series_mapping.png'):
         ''' 
         @params:
             - s1, s2: TimeSeries.
             - connection_list: list of list of int, mapping between 2 time series.
-            - figsize: tuple, should be same size. 
+            - figsize: tuple. 
             - color_s1, color_s2: str, a seaborn color.
             - show_connection_val: boolean, shows value on each connection.
-            - illustrate_gap: float or int. Shift s2 upward so it's easy to observe the connections.
         '''
 
         # Shift s2 upwards
         s1, s2 = s1.get_vals(), s2.get_vals()
-        s2 = s2 + illustrate_gap
     
         sns.set_style('darkgrid')
-        fig, axes = plt.subplots(2, 1, sharex=True, gridspec_kw={'height_ratios': [3, 1]}) # 2 rows x 1 column 
-        ax1, ax2 = axes
+        fig, axes = plt.subplots(3, 1, figsize=figsize, sharex=True, gridspec_kw={'height_ratios': [1, 2, 2], 'hspace': 0.3}) # 3 rows x 1 column 
+        ax1, ax2, ax3 = axes
             
         # Plot the 2 time series...
-        ax1.plot(np.arange(start=0, stop=s1.size, step=1), s1, '.-', c=color_s1, alpha=0.5, label='s1')
-        ax1.plot(np.arange(start=0, stop=s2.size, step=1), s2, '.-', c=color_s2, alpha=0.5, label='s2')
-        ax1.set_yticks([])
-        ax1.set_yticklabels([])
-        ax1.xaxis.set_label_position('top')
-        ax1.set_xlabel('Mapping between s1 and s2')
-        ax1.legend()
-
+        ax2.plot(np.arange(start=0, stop=s1.size, step=1), s1, '.-', c=color_s1, alpha=0.5, label='s1')
+        ax2.xaxis.set_label_position('top')
+        ax2.set_xlabel('Time-series s1')
+        ax3.plot(np.arange(start=0, stop=s2.size, step=1), s2, '.-', c=color_s2, alpha=0.5, label='s2')
+        ax3.set_xlabel('Time-series s2')
+        
         connection_val_list = [0]*s1.size
-        color = sns.color_palette("husl", 8)[-1]
-
         # and its mappings (connection)
-        for x_pair, y_pair in connection_list:
-            y_pair_modified = y_pair[0], y_pair[1]+illustrate_gap
-            ax1.plot(x_pair, y_pair_modified, c='black', alpha=0.5)
+        for point_in_s1, point_in_s2 in connection_list:
+            x1, y1 = point_in_s1
+            _, y2 = point_in_s2
+            val = abs(y1 - y2)
+            connection_val_list[x1] += val 
 
-            val = abs(y_pair[0] - y_pair[1])
-            connection_val_list[x_pair[0]] += val
-            if (show_connection_val == True):
-                label_x, label_y = np.mean(x_pair), np.mean(y_pair_modified)
-                shown_val = int(val)
-                if (shown_val > 0):
-                    ax1.annotate(shown_val, (label_x, label_y), c=color)
-                else:
-                    ax1.annotate(shown_val, (label_x, label_y))
+            con = ConnectionPatch(xyA=point_in_s1, xyB=point_in_s2, coordsA="data", coordsB="data",
+                        axesA=ax2, axesB=ax3, color="black")
+            ax3.add_artist(con)
 
         # Plot the true absolute gap at each point in s1
         bar_data = {
@@ -234,16 +230,17 @@ class DynamicTimeWarping(object):
             'y': connection_val_list,
         }
 
-        ax2 = sns.barplot(x='x', y='y', data=bar_data, color='salmon', saturation=0.75, ax=ax2)
-        ax2.tick_params(axis='x', rotation=90, width=5)
-        ax2.set_xlabel('Absolute value of the connections')
+
+        ax1 = sns.barplot(x='x', y='y', data=bar_data, color='salmon', saturation=0.75, ax=ax1)        
+        ax1.tick_params(axis='x', rotation=90, width=5)
+        ax1.set_xlabel('Absolute value of the connections in s1')
 
         fig.tight_layout()
         
         if (is_saved == True):
-            plt.savefig(img_name)
+            plt.savefig(img_name,bbox_inches='tight')
         else:
-            plt.show()
+            plt.show()                  
         plt.close()
 
     def generate_algorithm_gif(self, matrix, connection_list, s1, s2, use_log=False, figsize=(10, 10), 
@@ -304,8 +301,9 @@ class DynamicTimeWarping(object):
         left_list = [0]
         right_list = [0]
 
-        for x_pair, _ in connection_list[1:]:
-            s1_x, s2_x = x_pair
+        for point_in_s1, point_in_s2 in connection_list[1:]:
+            s1_x, _ = point_in_s1
+            s2_x, _ = point_in_s2
             
             # this is 1-to-1 mapping
             if ((s1_x not in left_list) and (s2_x not in right_list)):
@@ -364,18 +362,24 @@ if (__name__ == '__main__'):
                                          has_seed=False)
 
     algo = DynamicTimeWarping(s1, s2)
-
-
     DTW_dist, matrix, connection_list, s1, s2 = algo.compute(max_ele=40)
     
+    # Plot matrix
     algo.plot_matrix(matrix, connection_list, s1, s2)
+    
+    # Save matrix
     algo.plot_matrix(matrix, connection_list, s1, s2, is_saved=True)
-    algo.plot_series_mapping(s1, s2, connection_list, 400)
+    
+    # Plot time series pair mapping
+    algo.plot_series_mapping(s1, s2, connection_list)
+    
+    # Generate gif to illustrate the algorithm
     algo.generate_algorithm_gif(matrix, connection_list, s1, s2)
     
+    # Assymetric DTW resampling
     s1 = algo.reshape_s1_to_s2(s1, s2, connection_list)
     
+    # Recompute DTW after resampling s.t. time series pair has the same length
     algo = DynamicTimeWarping(s1, s2)
     DTW_dist, matrix, connection_list, s1, s2 = algo.compute(max_ele=40)
-    algo.plot_series_mapping(s1, s2, connection_list, 400)
-    
+    algo.plot_series_mapping(s1, s2, connection_list)

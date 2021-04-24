@@ -66,7 +66,6 @@ class TimeSeries(object):
         new_arr = np.array(new_arr)
         return TimeSeries(new_arr)
 
-
 class TimeSeriesGenerator(object):
     def __init__(self):
         super().__init__()
@@ -130,21 +129,42 @@ class TimeSeriesGenerator(object):
         series = np.concatenate(series)
         return TimeSeries(series)
         
+def plot_time_series_pair(s1, s2, color_s1='limegreen', color_s2='cornflowerblue', name_1='Time-series s1', name_2='Time-series s2',
+                         figsize=(12, 6), alpha=0.4, title='Time series pair'):
+    s1, s2 = s1.get_vals(), s2.get_vals()
+    
+    sns.set_style('darkgrid')
+
+    fig, axes = plt.subplots(2, 1, figsize=figsize, sharex=True, gridspec_kw={'height_ratios': [2, 2]}) # 2 rows x 1 column 
+    ax1, ax2 = axes
+
+    ax1.plot(np.arange(start=0, stop=s1.size, step=1), s1, '.-', c=color_s1, alpha=alpha)
+    ax1.set_title(name_1)
+
+    ax2.plot(np.arange(start=0, stop=s2.size, step=1), s2, '.-', c=color_s2, alpha=alpha)        
+    ax2.set_title(name_2)
+
+    plt.suptitle(title)
+
+    plt.show()
 
 if (__name__ == '__main__'):
     timeseries_gen = TimeSeriesGenerator()
     s1 = timeseries_gen.generate_timeseries(pattern='FFFFUUFFFDFD',    
-                                         n_points=10, 
-                                         start_val=0, 
-                                         amplitude=1, 
-                                         step=20, 
-                                         has_seed=True, 
-                                         seed=42)
+                                     n_points=10, 
+                                     start_val=0, 
+                                     amplitude=1, 
+                                     step=20, 
+                                     has_seed=True, 
+                                     seed=42)
+    s2 = timeseries_gen.generate_timeseries(pattern='FFUUFFFDFD', 
+                                     n_points=10, 
+                                     start_val=0, 
+                                     amplitude=1, 
+                                     step=20, 
+                                     has_seed=False)
+    plot_time_series_pair(s1, s2)
     
+    # Test for downsampling
     s2 = s1.down_sampling(ref_len=120, ref_n_ele=20)
-
-    sns.set_style('darkgrid')
-    plt.plot(np.linspace(0, 120, len(s1)), s1.get_vals(), '.-',
-             np.linspace(0, 120, len(s2)), s2.get_vals(), 'go-')
-    plt.show()
-    s1.plot()
+    plot_time_series_pair(s1, s2)
