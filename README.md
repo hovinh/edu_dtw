@@ -1,5 +1,5 @@
 # edu_dtw
-An education toolkit to illustrate Dynamic Time Warping algorithm. Thie materials originally prepared for this <a href="https://hovinh.github.io/blog/">blog post</a>. You can create virtual environment as below and jump straight to the `tutorial.ipynb`. 
+An education toolkit to illustrate Dynamic Time Warping algorithm. Thie materials originally prepared for this <a href="https://hoxuanvinh.netlify.app/blog/2021-03-15-edu-dtw/">blog post</a>. You can create virtual environment as below and jump straight to the `tutorial.ipynb`. 
 
 ## Environment Setup
 
